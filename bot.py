@@ -1,26 +1,30 @@
-import subprocess
 import sys
+import subprocess
 import asyncio
 from datetime import datetime
+
+print("🚀 STARTING BOT...", flush=True)
+sys.stdout.flush()
 
 # ===== АВТОУСТАНОВКА TELEGRAM =====
 def install_telethon():
     try:
         import telethon
-        print("✅ Telethon уже установлен")
+        print("✅ Telethon уже установлен", flush=True)
         return True
     except ImportError:
-        print("🔄 Устанавливаю Telethon...")
+        print("🔄 Устанавливаю Telethon...", flush=True)
         try:
             subprocess.check_call([sys.executable, "-m", "pip", "install", "telethon"])
-            print("✅ Telethon установлен")
+            print("✅ Telethon установлен", flush=True)
             return True
         except Exception as e:
-            print(f"❌ Ошибка установки: {e}")
+            print(f"❌ Ошибка установки: {e}", flush=True)
             return False
 
 # Устанавливаем перед импортом
 install_telethon()
+sys.stdout.flush()
 
 # Теперь импортируем
 from telethon import TelegramClient, events
@@ -51,6 +55,9 @@ BASE_TITLE = "BLOODный чат 🩸"
 current_group = MAIN_GROUP
 created_groups = []
 
+print("✅ Данные загружены", flush=True)
+sys.stdout.flush()
+
 client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
 
 async def add_bots_to_group(group_id):
@@ -58,20 +65,28 @@ async def add_bots_to_group(group_id):
     failed = []
     for bot in BOTS_TO_ADD:
         try:
-            print(f"➕ Добавляю {bot}...")
+            print(f"➕ Добавляю {bot}...", flush=True)
             bot_entity = await client.get_entity(bot)
             await client(InviteToChannelRequest(channel=group_id, users=[bot_entity]))
             added.append(bot)
             await asyncio.sleep(2)
         except Exception as e:
-            print(f"❌ {bot}: {e}")
+            print(f"❌ {bot}: {e}", flush=True)
             failed.append(bot)
     return added, failed
+
+async def check_group_health(entity_id):
+    """Проверяет, жива ли группа"""
+    try:
+        await client.get_entity(entity_id)
+        return True
+    except:
+        return False
 
 async def create_and_link_group():
     try:
         group_name = BASE_TITLE
-        print(f"\n🆕 Создаю группу: {group_name}")
+        print(f"\n🆕 Создаю группу: {group_name}", flush=True)
         
         result = await client(CreateChannelRequest(
             title=group_name,
@@ -81,14 +96,14 @@ async def create_and_link_group():
         
         group = result.chats[0]
         group_id = int(f"-100{group.id}") if group.id > 0 else group.id
-        print(f"✅ Группа создана! ID: {group_id}")
+        print(f"✅ Группа создана! ID: {group_id}", flush=True)
 
         added, failed = await add_bots_to_group(group_id)
 
         try:
             invite = await client(ExportChatInviteRequest(group))
             link = invite.link
-            print(f"🔗 Ссылка: {link}")
+            print(f"🔗 Ссылка: {link}", flush=True)
         except:
             link = "не создана"
 
@@ -97,10 +112,10 @@ async def create_and_link_group():
             group_entity = await client.get_entity(group_id)
             await client(SetDiscussionGroupRequest(broadcast=channel, group=group_entity))
             linked = True
-            print("✅ Привязано к каналу")
+            print("✅ Привязано к каналу", flush=True)
         except:
             linked = False
-            print("❌ Не удалось привязать к каналу")
+            print("❌ Не удалось привязать к каналу", flush=True)
 
         created_groups.append({
             'id': group_id,
@@ -117,17 +132,23 @@ async def create_and_link_group():
                f"✅ Ботов: {len(added)}/{len(BOTS_TO_ADD)}")
         
         await client.send_message(ADMIN_ID, msg)
+        print("✅ Уведомление админу отправлено", flush=True)
         return group_id
         
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
-        await client.send_message(ADMIN_ID, f"❌ Ошибка: {e}")
+        print(f"❌ Ошибка: {e}", flush=True)
+        try:
+            await client.send_message(ADMIN_ID, f"❌ Ошибка: {e}")
+        except:
+            pass
         return None
 
 @client.on(events.NewMessage)
 async def handler(event):
     if event.sender_id != ADMIN_ID:
         return
+    
+    print(f"📩 Получена команда: {event.text}", flush=True)
     
     if event.text == '/start':
         await event.reply(
@@ -147,17 +168,43 @@ async def handler(event):
         if group_id:
             await event.reply(f"✅ Чат создан!")
 
+@client.on(events.NewMessage(chats=CHANNEL_ID))
+async def channel_handler(event):
+    global current_group
+    
+    print(f"\n📢 Новый пост в канале!", flush=True)
+    
+    # Проверяем текущую группу
+    if not await check_group_health(current_group):
+        print(f"⚠️ Группа {current_group} недоступна! Создаю новую...", flush=True)
+        new_id = await create_and_link_group()
+        if new_id:
+            current_group = new_id
+            await client.send_message(ADMIN_ID, f"✅ Создана новая группа: {new_id}")
+    
+    # Отправляем уведомление в группу
+    try:
+        await client.send_message(
+            current_group,
+            f"**Новый пост**\n\nПишите комментарии здесь 👇"
+        )
+        print("✅ Уведомление отправлено в группу", flush=True)
+    except Exception as e:
+        print(f"❌ Ошибка отправки: {e}", flush=True)
+
 async def main():
-    print("=" * 50)
-    print("🩸 ЗАПУСК BLOODного ЮЗЕРБОТА")
-    print("=" * 50)
+    print("=" * 50, flush=True)
+    print("🩸 ЗАПУСК BLOODного ЮЗЕРБОТА", flush=True)
+    print("=" * 50, flush=True)
     
     await client.start()
     
     me = await client.get_me()
-    print(f"✅ Вошёл как: {me.first_name} (@{me.username})")
-    print(f"✅ ID: {me.id}")
-    print("=" * 50)
+    print(f"✅ Вошёл как: {me.first_name} (@{me.username})", flush=True)
+    print(f"✅ ID: {me.id}", flush=True)
+    print("=" * 50, flush=True)
+    print("👀 Слушаю канал...", flush=True)
+    print("=" * 50, flush=True)
     
     await client.run_until_disconnected()
 
@@ -165,6 +212,6 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("\n👋 Юзербот остановлен")
+        print("\n👋 Юзербот остановлен", flush=True)
     except Exception as e:
-        print(f"\n❌ Ошибка: {e}")
+        print(f"\n❌ Ошибка: {e}", flush=True)
