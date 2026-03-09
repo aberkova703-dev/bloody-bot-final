@@ -181,8 +181,9 @@ async def channel_handler(event):
         if new_id:
             current_group = new_id
             await client.send_message(ADMIN_ID, f"✅ Создана новая группа: {new_id}")
+            return  # 👈 ВАЖНО: после создания новой группы ничего не отправляем
     
-    # Отправляем уведомление в группу
+    # Отправляем уведомление в группу (только если группа существует)
     try:
         await client.send_message(
             current_group,
