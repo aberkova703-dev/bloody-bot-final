@@ -54,6 +54,7 @@ BOTS_TO_ADD = [
 BASE_TITLE = "BLOODный чат 🩸"
 current_group = MAIN_GROUP
 created_groups = []
+is_creating_group = False  # Флаг для блокировки повторного создания
 
 print("✅ Данные загружены", flush=True)
 sys.stdout.flush()
@@ -170,28 +171,35 @@ async def handler(event):
 
 @client.on(events.NewMessage(chats=CHANNEL_ID))
 async def channel_handler(event):
-    global current_group
+    global current_group, is_creating_group
     
     print(f"\n📢 Новый пост в канале!", flush=True)
     
-    # Проверяем текущую группу
-    if not await check_group_health(current_group):
-        print(f"⚠️ Группа {current_group} недоступна! Создаю новую...", flush=True)
-        new_id = await create_and_link_group()
-        if new_id:
-            current_group = new_id
-            await client.send_message(ADMIN_ID, f"✅ Создана новая группа: {new_id}")
-            return  # 👈 ВАЖНО: после создания новой группы ничего не отправляем
+    # Если группа уже создается — ничего не делаем
+    if is_creating_group:
+        print(f"⏳ Группа уже создается, пропускаем этот пост...", flush=True)
+        return
     
-    # Отправляем уведомление в группу (только если группа существует)
-    try:
-        await client.send_message(
-            current_group,
-            f"**Новый пост**\n\nПишите комментарии здесь 👇"
-        )
-        print("✅ Уведомление отправлено в группу", flush=True)
-    except Exception as e:
-        print(f"❌ Ошибка отправки: {e}", flush=True)
+    # Проверяем текущую группу
+    group_exists = await check_group_health(current_group)
+    
+    # Если группа не существует и не создается сейчас
+    if not group_exists and not is_creating_group:
+        print(f"⚠️ Группа {current_group} не найдена. Создаю новую...", flush=True)
+        
+        # Ставим флаг, что группа создается
+        is_creating_group = True
+        
+        try:
+            new_group_id = await create_and_link_group()
+            if new_group_id:
+                current_group = new_group_id
+                print(f"✅ Новая группа создана и назначена: {current_group}", flush=True)
+            else:
+                print(f"❌ Не удалось создать группу", flush=True)
+        finally:
+            # Снимаем флаг в любом случае
+            is_creating_group = False
 
 async def main():
     print("=" * 50, flush=True)
